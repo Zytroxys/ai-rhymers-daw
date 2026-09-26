@@ -42,6 +42,8 @@ function hashString(value: string): number {
 
 export interface SyllableColor extends SyllableSpan {
   color: number;
+  phraseId?: number;
+  isPhraseMember?: boolean;
 }
 
 /**

@@ -65,6 +65,12 @@ export function buildRhymeDecorations(
       matches?.forEach((match) => {
         const raw = toRawRange(word!, match);
         if (!raw) return;
+        const classes = ['rhyme-decoration', `rhyme-group-${match.color}`];
+        let hoverText = 'Rhymes with other syllables highlighted in this color';
+        if (match.isPhraseMember) {
+          classes.push('rhyme-phrase-member');
+          hoverText = 'Part of a phrase rhyme run with matching syllables across words';
+        }
         decorations.push({
           range: {
             startLineNumber: lineNumber,
@@ -73,8 +79,8 @@ export function buildRhymeDecorations(
             endColumn: range.startColumn + raw.end,
           },
           options: {
-            inlineClassName: `rhyme-decoration rhyme-group-${match.color}`,
-            hoverMessage: { value: 'Rhymes with other syllables highlighted in this color' },
+            inlineClassName: classes.join(' '),
+            hoverMessage: { value: hoverText },
           },
         });
       });

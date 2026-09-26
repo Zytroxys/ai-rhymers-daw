@@ -167,6 +167,7 @@ button, input, select, textarea {
 
 .rhyme-decoration { border-radius: 2px; text-underline-offset: 3px; }
 .rhyme-decoration.rhyme-focused { background: rgba(255, 122, 77, 0.35); }
+.rhyme-decoration.rhyme-phrase-member { text-decoration-thickness: 2px; }
 .rhyme-outlier-line { background: rgba(255, 122, 77, 0.1); }
 
 /* Rhyme-family palette: one hue per group, 30deg apart, applied as a tinted

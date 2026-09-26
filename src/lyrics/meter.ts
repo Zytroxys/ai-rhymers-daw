@@ -1,5 +1,6 @@
 import { analyzeWord, countSyllables } from '../rhyme/g2p';
 import { SyllableColor, groupRhymingSyllables } from '../rhyme/grouping';
+import { annotatePhrases } from '../rhyme/phrases';
 import { rhymeScheme, scoreRhyme } from '../rhyme/rhyme';
 
 /**
@@ -67,7 +68,9 @@ export interface VerseMeter {
    * syllable elsewhere in the verse -- possibly in a different word, a
    * different line, or mid-word in a multi-syllable neighbor. A multi-word
    * polysyllabic rhyme is just several of these lining up across adjacent
-   * words. */
+   * words. Each SyllableColor also includes phrase metadata: isPhraseMember
+   * (true if part of 2+ consecutive syllables in the same family) and phraseId
+   * (unique within the family if a phrase member). */
   syllableGroups: Map<string, SyllableColor[]>;
 }
 
@@ -83,7 +86,8 @@ export function analyzeVerse(lines: string[], barsPerLine = 1): VerseMeter {
     .sort((a, b) => b.drift - a.drift)
     .map((l) => l.index);
 
-  const syllableGroups = groupRhymingSyllables(analyzed.flatMap((line) => line.words.map((w) => w.text)));
+  let syllableGroups = groupRhymingSyllables(analyzed.flatMap((line) => line.words.map((w) => w.text)));
+  syllableGroups = annotatePhrases(syllableGroups, analyzed.map((line) => line.words.map((w) => w.text)));
 
   return {
     lines: analyzed,
