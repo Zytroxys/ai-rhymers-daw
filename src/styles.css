@@ -165,9 +165,27 @@ button, input, select, textarea {
   border-radius: 8px;
 }
 
-.rhyme-decoration.rhyme-internal { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
-.rhyme-decoration.rhyme-focused { background: rgba(255, 122, 77, 0.35); border-radius: 2px; }
+.rhyme-decoration { border-radius: 2px; text-underline-offset: 3px; }
+.rhyme-decoration.rhyme-focused { background: rgba(255, 122, 77, 0.35); }
 .rhyme-outlier-line { background: rgba(255, 122, 77, 0.1); }
+
+/* Rhyme-family palette: one hue per group, 30deg apart, applied as a tinted
+ * background plus a matching underline so families stay distinct even where
+ * hue alone is hard to tell apart. Colors are assigned by a hash of each
+ * group's own membership (see rhyme/grouping.ts), not by draw order, so a
+ * given family keeps its color as the rest of the verse changes. */
+.rhyme-decoration.rhyme-group-0  { background: hsla(0,   70%, 55%, 0.24); text-decoration: underline; text-decoration-color: hsla(0,   70%, 68%, 0.9); }
+.rhyme-decoration.rhyme-group-1  { background: hsla(30,  70%, 50%, 0.24); text-decoration: underline; text-decoration-color: hsla(30,  70%, 65%, 0.9); }
+.rhyme-decoration.rhyme-group-2  { background: hsla(60,  65%, 45%, 0.24); text-decoration: underline; text-decoration-color: hsla(60,  65%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-3  { background: hsla(90,  60%, 45%, 0.24); text-decoration: underline; text-decoration-color: hsla(90,  60%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-4  { background: hsla(120, 55%, 45%, 0.24); text-decoration: underline; text-decoration-color: hsla(120, 55%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-5  { background: hsla(160, 60%, 45%, 0.24); text-decoration: underline; text-decoration-color: hsla(160, 60%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-6  { background: hsla(190, 70%, 50%, 0.24); text-decoration: underline; text-decoration-color: hsla(190, 70%, 65%, 0.9); }
+.rhyme-decoration.rhyme-group-7  { background: hsla(215, 75%, 60%, 0.24); text-decoration: underline; text-decoration-color: hsla(215, 75%, 72%, 0.9); }
+.rhyme-decoration.rhyme-group-8  { background: hsla(255, 65%, 65%, 0.24); text-decoration: underline; text-decoration-color: hsla(255, 65%, 76%, 0.9); }
+.rhyme-decoration.rhyme-group-9  { background: hsla(285, 65%, 60%, 0.24); text-decoration: underline; text-decoration-color: hsla(285, 65%, 74%, 0.9); }
+.rhyme-decoration.rhyme-group-10 { background: hsla(320, 70%, 60%, 0.24); text-decoration: underline; text-decoration-color: hsla(320, 70%, 74%, 0.9); }
+.rhyme-decoration.rhyme-group-11 { background: hsla(345, 75%, 60%, 0.24); text-decoration: underline; text-decoration-color: hsla(345, 75%, 74%, 0.9); }
 
 .line-analysis { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .line-analysis li { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 5px; }

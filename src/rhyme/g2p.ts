@@ -507,6 +507,170 @@ export interface WordPronunciation {
   syllableCount: number;
 }
 
+export interface SyllableSpan {
+  /** Character offset into the *normalized* spelling, start inclusive. */
+  start: number;
+  /** End offset, exclusive. */
+  end: number;
+}
+
+/**
+ * Same phoneme output as `applyRules`, but paired with the normalized-word
+ * letter range that produced each phoneme -- used only by the syllable-span
+ * path below. `pronounce()`/`analyzeWord()` stay on the plain fast path so
+ * nothing else in the file changes shape.
+ */
+function applyRulesTraced(word: string): { phonemes: Phoneme[]; spans: Array<[number, number]> } {
+  const phonemes: Phoneme[] = [];
+  const spans: Array<[number, number]> = [];
+  let i = 0;
+  while (i < word.length) {
+    const bucket = RULES_BY_LETTER.get(word[i]);
+    let matched = false;
+    if (bucket) {
+      for (const rule of bucket) {
+        const end = i + rule.g.length;
+        if (end > word.length) continue;
+        if (word.slice(i, end) !== rule.g) continue;
+        const ctx: Ctx = { word, i, end };
+        if (rule.when && !rule.when(ctx)) continue;
+        for (const p of rule.p) {
+          phonemes.push(p);
+          spans.push([i, end]);
+        }
+        i = end;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) i += 1;
+  }
+  return { phonemes, spans };
+}
+
+/**
+ * Traced counterpart to `computePronunciation`. Words from the exception
+ * table or user overrides are hand-written phoneme strings with no letter
+ * alignment of their own, so their spans fall back to the whole word (or
+ * the whole stem/suffix, for an inflected form) -- an approximation, but
+ * one that's exact whenever that word turns out to be a single syllable,
+ * which covers most of the exception table.
+ */
+function computeTracedPronunciation(clean: string): { phonemes: Phoneme[]; spans: Array<[number, number]> } {
+  const known = lookupKnown(clean);
+  if (known) return { phonemes: known, spans: known.map(() => [0, clean.length] as [number, number]) };
+
+  for (const { ending, phones } of SUFFIXES) {
+    if (!clean.endsWith(ending) || clean.length <= ending.length + 1) continue;
+    const stem = clean.slice(0, -ending.length);
+    const stemPhones = lookupKnown(stem);
+    if (stemPhones) {
+      const inflected = inflect(stemPhones, ending, phones);
+      return {
+        phonemes: [...stemPhones, ...inflected],
+        spans: [
+          ...stemPhones.map(() => [0, stem.length] as [number, number]),
+          ...inflected.map(() => [stem.length, clean.length] as [number, number]),
+        ],
+      };
+    }
+  }
+
+  return applyRulesTraced(clean);
+}
+
+/** Mirrors `syllabify`'s maximal-onset algorithm, but also unions each
+ * syllable's phonemes' letter spans into one range per syllable. */
+function syllabifyTraced(
+  phonemes: Phoneme[],
+  spans: Array<[number, number]>,
+  spelling?: string,
+): { syllables: Syllable[]; syllableSpans: SyllableSpan[] } {
+  const nuclei: number[] = [];
+  phonemes.forEach((p, idx) => {
+    if (isVowel(p)) nuclei.push(idx);
+  });
+  if (nuclei.length === 0) return { syllables: [], syllableSpans: [] };
+
+  const syllables: Syllable[] = [];
+  const syllableSpans: SyllableSpan[] = [];
+
+  const extend = (syllableIdx: number, phonemeIdx: number) => {
+    const [start, end] = spans[phonemeIdx];
+    const cur = syllableSpans[syllableIdx];
+    syllableSpans[syllableIdx] = cur
+      ? { start: Math.min(cur.start, start), end: Math.max(cur.end, end) }
+      : { start, end };
+  };
+
+  for (let n = 0; n < nuclei.length; n += 1) {
+    const nucleusIdx = nuclei[n];
+    const prevNucleus = n === 0 ? -1 : nuclei[n - 1];
+
+    const between = phonemes.slice(prevNucleus + 1, nucleusIdx) as Consonant[];
+    let onset: Consonant[] = between;
+    let onsetStart = prevNucleus + 1;
+    if (n > 0) {
+      onset = [];
+      for (let take = Math.min(between.length, 3); take >= 0; take -= 1) {
+        const candidate = between.slice(between.length - take) as Consonant[];
+        if (legalOnset(candidate)) {
+          onset = candidate;
+          break;
+        }
+      }
+      const carriedCount = between.length - onset.length;
+      onsetStart = prevNucleus + 1 + carriedCount;
+      const carried = between.slice(0, carriedCount);
+      if (carried.length) syllables[syllables.length - 1].coda.push(...carried);
+      for (let k = 0; k < carriedCount; k += 1) extend(syllables.length - 1, prevNucleus + 1 + k);
+    }
+    for (let k = 0; k < onset.length; k += 1) extend(syllables.length, onsetStart + k);
+    extend(syllables.length, nucleusIdx);
+
+    const coda = n === nuclei.length - 1 ? (phonemes.slice(nucleusIdx + 1) as Consonant[]) : [];
+    for (let k = 0; k < coda.length; k += 1) extend(syllables.length, nucleusIdx + 1 + k);
+
+    syllables.push({ onset, nucleus: phonemes[nucleusIdx] as Vowel, coda, stressed: false });
+  }
+
+  assignStress(syllables, spelling);
+  return { syllables, syllableSpans };
+}
+
+/**
+ * Phonetic analysis with a per-syllable character range into the normalized
+ * spelling, so a caller can highlight exactly the letters behind one
+ * syllable rather than the whole word. Ranges are exact for rule-derived
+ * pronunciations and approximate (whole-word) for exception-table entries;
+ * see `computeTracedPronunciation`.
+ */
+export function analyzeWordWithSpans(word: string): {
+  normalized: string;
+  syllables: Syllable[];
+  syllableSpans: SyllableSpan[];
+} {
+  const normalized = normalizeWord(word);
+  const { phonemes, spans } = computeTracedPronunciation(normalized);
+  const { syllables, syllableSpans } = syllabifyTraced(phonemes, spans, normalized);
+  return { normalized, syllables, syllableSpans };
+}
+
+/**
+ * Maps each character kept by `normalizeWord` back to its index in the
+ * original (unnormalized) string, in order -- so a range expressed in
+ * normalized coordinates (from `analyzeWordWithSpans`) can be converted back
+ * to a range over the word as it actually appears in the source text.
+ */
+export function normalizedIndexMap(word: string): number[] {
+  const map: number[] = [];
+  for (let i = 0; i < word.length; i += 1) {
+    const ch = word[i].toLowerCase();
+    if (ch >= 'a' && ch <= 'z') map.push(i);
+  }
+  return map;
+}
+
 const analysisCache = new Map<string, WordPronunciation>();
 
 /** Full phonetic analysis of one word, memoized. */

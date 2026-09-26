@@ -1,4 +1,5 @@
 import { analyzeWord, countSyllables } from '../rhyme/g2p';
+import { SyllableColor, groupRhymingSyllables } from '../rhyme/grouping';
 import { rhymeScheme, scoreRhyme } from '../rhyme/rhyme';
 
 /**
@@ -61,6 +62,13 @@ export interface VerseMeter {
   averageSyllables: number;
   /** Lines whose syllable count strays furthest from the verse average. */
   outliers: number[];
+  /** Normalized word -> the syllables of that word (as character ranges into
+   * its normalized spelling, each with a palette index) that rhyme with some
+   * syllable elsewhere in the verse -- possibly in a different word, a
+   * different line, or mid-word in a multi-syllable neighbor. A multi-word
+   * polysyllabic rhyme is just several of these lining up across adjacent
+   * words. */
+  syllableGroups: Map<string, SyllableColor[]>;
 }
 
 export function analyzeVerse(lines: string[], barsPerLine = 1): VerseMeter {
@@ -75,12 +83,15 @@ export function analyzeVerse(lines: string[], barsPerLine = 1): VerseMeter {
     .sort((a, b) => b.drift - a.drift)
     .map((l) => l.index);
 
+  const syllableGroups = groupRhymingSyllables(analyzed.flatMap((line) => line.words.map((w) => w.text)));
+
   return {
     lines: analyzed,
     scheme: rhymeScheme(lines),
     totalSyllables,
     averageSyllables,
     outliers,
+    syllableGroups,
   };
 }
 
