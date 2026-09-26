@@ -42,6 +42,9 @@ function hashString(value: string): number {
 
 export interface SyllableColor extends SyllableSpan {
   color: number;
+  /** Whether this syllable carries the word's primary stress -- optional so
+   * hand-built SyllableColor fixtures elsewhere don't need updating. */
+  stressed?: boolean;
   phraseId?: number;
   isPhraseMember?: boolean;
 }
@@ -128,9 +131,9 @@ export function groupRhymingSyllables(
   for (const group of families) {
     const members = group.map((idx) => units[idx]);
     const color = hashString(members.map((m) => m.key).sort().join('|')) % RHYME_GROUP_COLORS;
-    for (const { word, span } of members) {
+    for (const { word, span, syllable } of members) {
       const list = result.get(word);
-      const entry = { ...span, color };
+      const entry: SyllableColor = { ...span, color, stressed: syllable.stressed };
       if (list) list.push(entry);
       else result.set(word, [entry]);
     }

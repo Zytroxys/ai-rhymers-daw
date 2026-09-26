@@ -580,28 +580,42 @@ function computeTracedPronunciation(clean: string): { phonemes: Phoneme[]; spans
 }
 
 /** Mirrors `syllabify`'s maximal-onset algorithm, but also unions each
- * syllable's phonemes' letter spans into one range per syllable. */
+ * syllable's phonemes' letter spans into one range per syllable -- and,
+ * separately, one range covering just that syllable's onset letters and one
+ * covering just its coda letters (each `null` when that part is empty), for
+ * callers that need to highlight leading/trailing consonants specifically
+ * rather than the whole syllable (see `analyzeWordWithDetailedSpans`). */
 function syllabifyTraced(
   phonemes: Phoneme[],
   spans: Array<[number, number]>,
   spelling?: string,
-): { syllables: Syllable[]; syllableSpans: SyllableSpan[] } {
+): {
+  syllables: Syllable[];
+  syllableSpans: SyllableSpan[];
+  onsetSpans: (SyllableSpan | null)[];
+  codaSpans: (SyllableSpan | null)[];
+} {
   const nuclei: number[] = [];
   phonemes.forEach((p, idx) => {
     if (isVowel(p)) nuclei.push(idx);
   });
-  if (nuclei.length === 0) return { syllables: [], syllableSpans: [] };
+  if (nuclei.length === 0) return { syllables: [], syllableSpans: [], onsetSpans: [], codaSpans: [] };
 
   const syllables: Syllable[] = [];
   const syllableSpans: SyllableSpan[] = [];
+  const onsetSpans: (SyllableSpan | undefined)[] = [];
+  const codaSpans: (SyllableSpan | undefined)[] = [];
 
-  const extend = (syllableIdx: number, phonemeIdx: number) => {
+  const extendInto = (arr: (SyllableSpan | undefined)[], syllableIdx: number, phonemeIdx: number) => {
     const [start, end] = spans[phonemeIdx];
-    const cur = syllableSpans[syllableIdx];
-    syllableSpans[syllableIdx] = cur
+    const cur = arr[syllableIdx];
+    arr[syllableIdx] = cur
       ? { start: Math.min(cur.start, start), end: Math.max(cur.end, end) }
       : { start, end };
   };
+  const extend = (syllableIdx: number, phonemeIdx: number) => extendInto(syllableSpans, syllableIdx, phonemeIdx);
+  const extendOnset = (syllableIdx: number, phonemeIdx: number) => extendInto(onsetSpans, syllableIdx, phonemeIdx);
+  const extendCoda = (syllableIdx: number, phonemeIdx: number) => extendInto(codaSpans, syllableIdx, phonemeIdx);
 
   for (let n = 0; n < nuclei.length; n += 1) {
     const nucleusIdx = nuclei[n];
@@ -623,19 +637,33 @@ function syllabifyTraced(
       onsetStart = prevNucleus + 1 + carriedCount;
       const carried = between.slice(0, carriedCount);
       if (carried.length) syllables[syllables.length - 1].coda.push(...carried);
-      for (let k = 0; k < carriedCount; k += 1) extend(syllables.length - 1, prevNucleus + 1 + k);
+      for (let k = 0; k < carriedCount; k += 1) {
+        extend(syllables.length - 1, prevNucleus + 1 + k);
+        extendCoda(syllables.length - 1, prevNucleus + 1 + k);
+      }
     }
-    for (let k = 0; k < onset.length; k += 1) extend(syllables.length, onsetStart + k);
+    for (let k = 0; k < onset.length; k += 1) {
+      extend(syllables.length, onsetStart + k);
+      extendOnset(syllables.length, onsetStart + k);
+    }
     extend(syllables.length, nucleusIdx);
 
     const coda = n === nuclei.length - 1 ? (phonemes.slice(nucleusIdx + 1) as Consonant[]) : [];
-    for (let k = 0; k < coda.length; k += 1) extend(syllables.length, nucleusIdx + 1 + k);
+    for (let k = 0; k < coda.length; k += 1) {
+      extend(syllables.length, nucleusIdx + 1 + k);
+      extendCoda(syllables.length, nucleusIdx + 1 + k);
+    }
 
     syllables.push({ onset, nucleus: phonemes[nucleusIdx] as Vowel, coda, stressed: false });
   }
 
   assignStress(syllables, spelling);
-  return { syllables, syllableSpans };
+  return {
+    syllables,
+    syllableSpans,
+    onsetSpans: syllables.map((_, i) => onsetSpans[i] ?? null),
+    codaSpans: syllables.map((_, i) => codaSpans[i] ?? null),
+  };
 }
 
 /**
@@ -654,6 +682,25 @@ export function analyzeWordWithSpans(word: string): {
   const { phonemes, spans } = computeTracedPronunciation(normalized);
   const { syllables, syllableSpans } = syllabifyTraced(phonemes, spans, normalized);
   return { normalized, syllables, syllableSpans };
+}
+
+/**
+ * Like `analyzeWordWithSpans`, but also exposes each syllable's onset-only
+ * and coda-only character ranges (each `null` when that part is empty) --
+ * for callers highlighting leading/trailing consonants specifically, such as
+ * consonance/alliteration detection, rather than a whole syllable.
+ */
+export function analyzeWordWithDetailedSpans(word: string): {
+  normalized: string;
+  syllables: Syllable[];
+  syllableSpans: SyllableSpan[];
+  onsetSpans: (SyllableSpan | null)[];
+  codaSpans: (SyllableSpan | null)[];
+} {
+  const normalized = normalizeWord(word);
+  const { phonemes, spans } = computeTracedPronunciation(normalized);
+  const { syllables, syllableSpans, onsetSpans, codaSpans } = syllabifyTraced(phonemes, spans, normalized);
+  return { normalized, syllables, syllableSpans, onsetSpans, codaSpans };
 }
 
 /**

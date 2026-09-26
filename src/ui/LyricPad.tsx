@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { buildRhymeDecorations } from './lyricDecorations';
+import { buildConsonanceDecorations, buildRhymeDecorations } from './lyricDecorations';
 import { VerseMeter, analyzeVerse } from '../lyrics/meter';
-import { actions, useProject } from '../state/store';
+import { ConsonanceMode, actions, useProject } from '../state/store';
 
 /** Monaco is ~600kB -- loaded on demand rather than in the app's main chunk. */
 async function loadMonaco(): Promise<typeof Monaco> {
@@ -47,8 +47,12 @@ export default function LyricPad() {
   const barsPerLine = useProject((s) => s.barsPerLine);
   const bpm = useProject((s) => s.transport.bpm);
   const focusWord = useProject((s) => s.focusWord);
+  const consonanceMode = useProject((s) => s.consonanceMode);
+  const consonanceSelection = useProject((s) => s.consonanceSelection);
 
-  const [verse, setVerse] = useState<VerseMeter>(() => analyzeVerse(lyrics.split('\n'), barsPerLine));
+  const [verse, setVerse] = useState<VerseMeter>(() =>
+    analyzeVerse(lyrics.split('\n'), barsPerLine, { mode: consonanceMode, selection: consonanceSelection }),
+  );
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -90,7 +94,10 @@ export default function LyricPad() {
       });
       editorRef.current = editor;
       decorationsRef.current = editor.createDecorationsCollection();
-      decorationsRef.current.set(buildRhymeDecorations(verse, focusWord));
+      decorationsRef.current.set([
+        ...buildRhymeDecorations(verse, focusWord),
+        ...buildConsonanceDecorations(verse),
+      ]);
 
       subscriptions.push(
         editor.onDidChangeModelContent(() => {
@@ -139,19 +146,27 @@ export default function LyricPad() {
     if (analyzeFrame.current !== null) cancelAnimationFrame(analyzeFrame.current);
     analyzeFrame.current = requestAnimationFrame(() => {
       analyzeFrame.current = null;
-      setVerse(analyzeVerse(lyrics.split('\n'), barsPerLine));
+      setVerse(analyzeVerse(lyrics.split('\n'), barsPerLine, { mode: consonanceMode, selection: consonanceSelection }));
     });
     return () => {
       if (analyzeFrame.current !== null) cancelAnimationFrame(analyzeFrame.current);
     };
-  }, [lyrics, barsPerLine]);
+  }, [lyrics, barsPerLine, consonanceMode, consonanceSelection]);
 
   // Paint the editor's inline decorations from whatever analysis is current.
   useEffect(() => {
-    decorationsRef.current?.set(buildRhymeDecorations(verse, focusWord));
+    decorationsRef.current?.set([
+      ...buildRhymeDecorations(verse, focusWord),
+      ...buildConsonanceDecorations(verse),
+    ]);
   }, [verse, focusWord]);
 
   const secondsPerBar = (60 / bpm) * 4;
+
+  const selectedSet = useMemo(
+    () => new Set(consonanceSelection.map((p) => `${p.lineIdx}:${p.wordIdx}`)),
+    [consonanceSelection],
+  );
 
   return (
     <section className="lyric-panel">
@@ -166,6 +181,17 @@ export default function LyricPad() {
             <option value={0.5}>½</option>
             <option value={1}>1</option>
             <option value={2}>2</option>
+          </select>
+        </label>
+        <label className="field inline">
+          <span>Consonance</span>
+          <select
+            value={consonanceMode}
+            onChange={(e) => actions.setConsonanceMode(e.target.value as ConsonanceMode)}
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+            <option value="semi-auto">Semi-auto</option>
           </select>
         </label>
         <span className="stat">
@@ -193,8 +219,14 @@ export default function LyricPad() {
                       'word',
                       rhymed.has(wordIndex) ? 'internal' : '',
                       focusWord === word.text ? 'focused' : '',
+                      consonanceMode === 'semi-auto' && selectedSet.has(`${index}:${wordIndex}`) ? 'selected' : '',
                     ].filter(Boolean).join(' ')}
-                    onClick={() => actions.setFocusWord(word.text)}
+                    onClick={() => {
+                      actions.setFocusWord(word.text);
+                      if (consonanceMode === 'semi-auto') {
+                        actions.toggleConsonanceWord({ lineIdx: index, wordIdx: wordIndex });
+                      }
+                    }}
                     title={`${word.syllables} syllable${word.syllables === 1 ? '' : 's'}`}
                   >
                     {word.text}
@@ -209,6 +241,19 @@ export default function LyricPad() {
       {verse.outliers.length > 0 && (
         <p className="hint">
           Highlighted lines drift furthest from the verse&apos;s average syllable count.
+        </p>
+      )}
+      {consonanceMode === 'semi-auto' && (
+        <p className="hint">
+          {consonanceSelection.length} word{consonanceSelection.length === 1 ? '' : 's'} selected for consonance
+          {consonanceSelection.length > 0 && (
+            <>
+              {' · '}
+              <button className="link" onClick={() => actions.clearConsonanceSelection()}>
+                Clear
+              </button>
+            </>
+          )}
         </p>
       )}
     </section>

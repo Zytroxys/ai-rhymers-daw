@@ -1,6 +1,7 @@
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { VerseMeter } from '../lyrics/meter';
 import { normalizeWord, normalizedIndexMap } from '../rhyme/g2p';
+import { ConsonanceKind } from '../rhyme/consonance';
 
 /**
  * Maps each line's word list back onto column ranges in the source text.
@@ -67,6 +68,7 @@ export function buildRhymeDecorations(
         if (!raw) return;
         const classes = ['rhyme-decoration', `rhyme-group-${match.color}`];
         let hoverText = 'Rhymes with other syllables highlighted in this color';
+        if (match.stressed) classes.push('rhyme-stressed');
         if (match.isPhraseMember) {
           classes.push('rhyme-phrase-member');
           hoverText = 'Part of a phrase rhyme run with matching syllables across words';
@@ -109,6 +111,54 @@ export function buildRhymeDecorations(
         },
       });
     }
+  });
+
+  return decorations;
+}
+
+const CONSONANCE_HOVER: Record<ConsonanceKind, string> = {
+  onset: 'Alliterates with other word-initial consonants',
+  trailing: 'Trailing consonants match elsewhere in the verse',
+};
+
+/** Inline consonance highlighting: word-initial and stressed-syllable-onward
+ * trailing consonant clusters that echo elsewhere in the verse, computed
+ * entirely independently of rhyme-family scoring (see rhyme/consonance.ts).
+ * Kept as a separate decoration pass -- rather than folded into
+ * `buildRhymeDecorations` -- so the two stay independently swappable, and so
+ * a syllable that's both rhyme-matched and consonance-matched (its spans can
+ * overlap, since a rhyme-family span covers a whole syllable including its
+ * onset letters) never has one signal silently override the other: the two
+ * use different CSS properties (see `.consonance-decoration` in styles.css)
+ * specifically so Monaco merging both decorations' classes onto one span
+ * still renders both. */
+export function buildConsonanceDecorations(verse: VerseMeter): Monaco.editor.IModelDeltaDecoration[] {
+  const decorations: Monaco.editor.IModelDeltaDecoration[] = [];
+
+  verse.lines.forEach((line, index) => {
+    const lineNumber = index + 1;
+    const ranges = wordRanges(lineNumber, line.text);
+
+    ranges.forEach((range, wordIndex) => {
+      const word = line.words[wordIndex]?.text;
+      const matches = word ? verse.consonanceGroups.get(normalizeWord(word)) : undefined;
+      matches?.forEach((match) => {
+        const raw = toRawRange(word!, match);
+        if (!raw) return;
+        decorations.push({
+          range: {
+            startLineNumber: lineNumber,
+            endLineNumber: lineNumber,
+            startColumn: range.startColumn + raw.start,
+            endColumn: range.startColumn + raw.end,
+          },
+          options: {
+            inlineClassName: `consonance-decoration consonance-${match.kind}`,
+            hoverMessage: { value: CONSONANCE_HOVER[match.kind] },
+          },
+        });
+      });
+    });
   });
 
   return decorations;

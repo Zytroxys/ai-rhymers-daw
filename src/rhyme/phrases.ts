@@ -1,7 +1,7 @@
 import { normalizeWord } from './g2p';
 import { SyllableColor } from './grouping';
 
-const FUNCTION_WORD_STOPLIST = new Set([
+export const FUNCTION_WORD_STOPLIST = new Set([
   'a', 'an', 'the', 'i', 'my', 'in', 'on', 'of', 'to', 'and', 'or', 'but',
   'it', 'is', 'am', 'are', 'was', 'be', 'as', 'at', 'so', 'for', 'me', 'we',
   'he', 'she', 'you', 'him', 'her', 'us', 'this', 'that',
