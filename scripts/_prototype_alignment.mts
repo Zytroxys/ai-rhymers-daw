@@ -219,3 +219,21 @@ for (const w of ['a', 'the', 'I', 'my', 'in', 'money', 'wagon']) {
   const { syllables } = analyzeWord(w);
   console.log(' ', w.padEnd(8), syllables.map((s) => `${s.nucleus}${s.stressed ? '(stressed)' : '(unstressed)'}`).join(' '));
 }
+
+console.log('\n' + '='.repeat(70));
+console.log('LIVE-APP WORD LIST CHECK: fog vs log nucleus');
+for (const w of ['fog', 'log']) {
+  const { syllables } = analyzeWord(w);
+  console.log(' ', w, syllables.map((s) => s.nucleus).join(' '));
+}
+
+console.log('\n' + '='.repeat(70));
+console.log('TEST 2b: does log actually pair with fog, or get claimed by something else first?');
+{
+  const lineA = 'Tragic wagon rolling through the magic dragon fog';
+  const lineB = 'Money over heavy nights I never lost my log';
+  const seqA = labelLine(lineA);
+  const seqB = labelLine(lineB);
+  const alignments = findAlignments(seqA, seqB, { count: 5, minScore: 0 });
+  alignments.forEach((r, idx) => printAlignment(seqA, seqB, r, `Alignment ${idx + 1}`));
+}
