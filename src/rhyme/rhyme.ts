@@ -103,6 +103,47 @@ function sameTail(
   );
 }
 
+export interface SyllablePairScore {
+  score: number;
+  quality: RhymeQuality;
+}
+
+/**
+ * Scores two syllables purely on their own sound: nucleus plus that
+ * syllable's own coda, with no onset borrowed from a following syllable.
+ * This runs the same math `scoreRhyme` uses for a single-syllable
+ * comparison -- unit similarity, the exact-tail floor, the multi-syllable
+ * landing bonus (which for exactly one compared syllable always works out
+ * to the same flat 0.9 scale-down, so it's inlined as that), and the
+ * stress-mismatch penalty -- just applied to bare `Syllable` objects rather
+ * than a whole word/phrase pair.
+ *
+ * Used for syllable-level rhyme clustering (see rhyme/grouping.ts), where
+ * "the next syllable" needed for `scoreRhyme`'s own tail definition is
+ * ambiguous -- syllables there are compared independent of whatever word or
+ * phrase they happen to sit in, so only a syllable's own sound is in play.
+ */
+export function scoreSyllablePair(a: Syllable, b: Syllable): SyllablePairScore {
+  const unitA = { nucleus: a.nucleus, tail: a.coda };
+  const unitB = { nucleus: b.nucleus, tail: b.coda };
+  let score = unitSimilarity(unitA, unitB);
+  const exactTail = sameTail(unitA, unitB);
+  if (exactTail) score = Math.max(score, PERFECT_BASE);
+  score *= 0.9;
+
+  const stressAligned = a.stressed === b.stressed;
+  if (!stressAligned) score *= STRESS_MISMATCH_PENALTY;
+
+  let quality: RhymeQuality;
+  if (exactTail && stressAligned) quality = 'perfect';
+  else if (score >= 0.75) quality = 'near';
+  else if (score >= 0.58) quality = 'slant';
+  else if (vowelSimilarity(a.nucleus, b.nucleus) >= 0.8) quality = 'assonance';
+  else quality = 'weak';
+
+  return { score, quality };
+}
+
 const EMPTY_SCORE: RhymeScore = {
   score: 0,
   quality: 'weak',

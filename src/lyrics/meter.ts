@@ -1,5 +1,21 @@
 import { analyzeWord, countSyllables } from '../rhyme/g2p';
+import { SyllableColor, groupRhymingSyllables } from '../rhyme/grouping';
+import { annotatePhrases } from '../rhyme/phrases';
 import { rhymeScheme, scoreRhyme } from '../rhyme/rhyme';
+import {
+  ConsonanceSpan,
+  WordPosition,
+  groupConsonance,
+  groupConsonanceForSelection,
+} from '../rhyme/consonance';
+
+export type ConsonanceMode = 'off' | 'on' | 'semi-auto';
+
+export interface ConsonanceOptions {
+  mode: ConsonanceMode;
+  /** Only consulted when `mode === 'semi-auto'`. */
+  selection?: WordPosition[];
+}
 
 /**
  * Turns written lines into something the timeline can draw: syllable counts,
@@ -61,9 +77,27 @@ export interface VerseMeter {
   averageSyllables: number;
   /** Lines whose syllable count strays furthest from the verse average. */
   outliers: number[];
+  /** Normalized word -> the syllables of that word (as character ranges into
+   * its normalized spelling, each with a palette index) that rhyme with some
+   * syllable elsewhere in the verse -- possibly in a different word, a
+   * different line, or mid-word in a multi-syllable neighbor. A multi-word
+   * polysyllabic rhyme is just several of these lining up across adjacent
+   * words. Each SyllableColor also includes phrase metadata: isPhraseMember
+   * (true if part of 2+ consecutive syllables in the same family) and phraseId
+   * (unique within the family if a phrase member). */
+  syllableGroups: Map<string, SyllableColor[]>;
+  /** Consonant-cluster echoes (word-initial alliteration and stressed-syllable-
+   * onward trailing consonants), gated by the caller's consonance mode --
+   * empty when 'off', or when 'semi-auto' has no current selection. Entirely
+   * independent of `syllableGroups` / rhyme scoring; see rhyme/consonance.ts. */
+  consonanceGroups: Map<string, ConsonanceSpan[]>;
 }
 
-export function analyzeVerse(lines: string[], barsPerLine = 1): VerseMeter {
+export function analyzeVerse(
+  lines: string[],
+  barsPerLine = 1,
+  consonance: ConsonanceOptions = { mode: 'off' },
+): VerseMeter {
   const analyzed = lines.map((line) => analyzeLine(line, barsPerLine));
   const nonEmpty = analyzed.filter((l) => l.syllables > 0);
   const totalSyllables = analyzed.reduce((sum, l) => sum + l.syllables, 0);
@@ -75,12 +109,25 @@ export function analyzeVerse(lines: string[], barsPerLine = 1): VerseMeter {
     .sort((a, b) => b.drift - a.drift)
     .map((l) => l.index);
 
+  const lineWordTexts = analyzed.map((line) => line.words.map((w) => w.text));
+  let syllableGroups = groupRhymingSyllables(lineWordTexts.flat());
+  syllableGroups = annotatePhrases(syllableGroups, lineWordTexts);
+
+  const consonanceGroups =
+    consonance.mode === 'off'
+      ? new Map<string, ConsonanceSpan[]>()
+      : consonance.mode === 'on'
+        ? groupConsonance(lineWordTexts.flat())
+        : groupConsonanceForSelection(lineWordTexts, consonance.selection ?? []);
+
   return {
     lines: analyzed,
     scheme: rhymeScheme(lines),
     totalSyllables,
     averageSyllables,
     outliers,
+    syllableGroups,
+    consonanceGroups,
   };
 }
 

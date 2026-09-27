@@ -7,6 +7,7 @@
   --muted: #8b93a4;
   --accent: #ff7a4d;
   --accent-2: #4dd0e1;
+  --style-accent: #ffcf5c;
   --track-label: 132px;
   color-scheme: dark;
 }
@@ -94,7 +95,7 @@ button, input, select, textarea {
 }
 .left-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-.grid-panel, .lyric-panel, .rhyme-panel {
+.grid-panel, .lyric-panel, .rhyme-panel, .word-graph-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -154,17 +155,66 @@ button, input, select, textarea {
 .hint { margin: 10px 0 0; font-size: 11px; color: var(--muted); }
 
 /* --- lyrics --- */
-.lyric-input {
+.lyric-input.monaco-host {
   width: 100%;
-  min-height: 150px;
+  height: 170px;
+  min-height: 90px;
   resize: vertical;
+  overflow: hidden;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px 12px;
-  line-height: 1.9;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
+
+.rhyme-decoration { border-radius: 2px; text-underline-offset: 3px; }
+.rhyme-decoration.rhyme-focused { background: rgba(255, 122, 77, 0.35); }
+.rhyme-outlier-line { background: rgba(255, 122, 77, 0.1); }
+
+/* Phrase-run membership and consonance echoes each get their own CSS
+ * property (rather than `text-decoration`, reserved for stress below) so
+ * they can stack freely: a syllable's rhyme-family span already covers its
+ * onset letters, so a word that's both rhyme-matched *and* consonance-matched
+ * has Monaco merge both decorations' classes onto one span, and two classes
+ * both setting the same shorthand there would have one silently lose. */
+.rhyme-decoration.rhyme-phrase-member { box-shadow: inset 0 -4px 0 0 rgba(255, 255, 255, 0.35); }
+
+/* Rhyme-family palette: one hue per group, 30deg apart, applied as a tinted
+ * background. Colors are assigned by a hash of each group's own membership
+ * (see rhyme/grouping.ts), not by draw order, so a given family keeps its
+ * color as the rest of the verse changes. The underline itself only appears
+ * on the `.rhyme-stressed` variant below -- underline means "this syllable
+ * is stressed", not "this syllable belongs to a family". */
+.rhyme-decoration.rhyme-group-0  { background: hsla(0,   70%, 55%, 0.24); }
+.rhyme-decoration.rhyme-group-1  { background: hsla(30,  70%, 50%, 0.24); }
+.rhyme-decoration.rhyme-group-2  { background: hsla(60,  65%, 45%, 0.24); }
+.rhyme-decoration.rhyme-group-3  { background: hsla(90,  60%, 45%, 0.24); }
+.rhyme-decoration.rhyme-group-4  { background: hsla(120, 55%, 45%, 0.24); }
+.rhyme-decoration.rhyme-group-5  { background: hsla(160, 60%, 45%, 0.24); }
+.rhyme-decoration.rhyme-group-6  { background: hsla(190, 70%, 50%, 0.24); }
+.rhyme-decoration.rhyme-group-7  { background: hsla(215, 75%, 60%, 0.24); }
+.rhyme-decoration.rhyme-group-8  { background: hsla(255, 65%, 65%, 0.24); }
+.rhyme-decoration.rhyme-group-9  { background: hsla(285, 65%, 60%, 0.24); }
+.rhyme-decoration.rhyme-group-10 { background: hsla(320, 70%, 60%, 0.24); }
+.rhyme-decoration.rhyme-group-11 { background: hsla(345, 75%, 60%, 0.24); }
+
+.rhyme-decoration.rhyme-group-0.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(0,   70%, 68%, 0.9); }
+.rhyme-decoration.rhyme-group-1.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(30,  70%, 65%, 0.9); }
+.rhyme-decoration.rhyme-group-2.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(60,  65%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-3.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(90,  60%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-4.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(120, 55%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-5.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(160, 60%, 60%, 0.9); }
+.rhyme-decoration.rhyme-group-6.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(190, 70%, 65%, 0.9); }
+.rhyme-decoration.rhyme-group-7.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(215, 75%, 72%, 0.9); }
+.rhyme-decoration.rhyme-group-8.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(255, 65%, 76%, 0.9); }
+.rhyme-decoration.rhyme-group-9.rhyme-stressed  { text-decoration: underline; text-decoration-color: hsla(285, 65%, 74%, 0.9); }
+.rhyme-decoration.rhyme-group-10.rhyme-stressed { text-decoration: underline; text-decoration-color: hsla(320, 70%, 74%, 0.9); }
+.rhyme-decoration.rhyme-group-11.rhyme-stressed { text-decoration: underline; text-decoration-color: hsla(345, 75%, 74%, 0.9); }
+
+/* Consonance echoes (alliteration / trailing-consonant matches, independent
+ * of rhyme families -- see rhyme/consonance.ts): a subtle, neutral marker on
+ * a different property (`border-bottom`) so it never fights the stress
+ * underline or the phrase box-shadow for the same characters. */
+.consonance-decoration { border-bottom: 1px dotted rgba(160, 170, 190, 0.7); }
 
 .line-analysis { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .line-analysis li { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 5px; }
@@ -190,7 +240,18 @@ button, input, select, textarea {
 .word:hover { border-color: var(--line); }
 .word.internal { color: var(--accent); }
 .word.focused { background: var(--accent); color: #14161a; }
+.word.selected { border-color: var(--accent-2); border-style: dashed; background: rgba(77, 208, 225, 0.15); }
 .empty { color: var(--muted); }
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-2);
+  cursor: pointer;
+  font-size: inherit;
+}
+.link:hover { text-decoration: underline; }
 
 /* --- rhymes --- */
 .rhyme-panel { position: sticky; top: 76px; max-height: calc(100vh - 96px); display: flex; flex-direction: column; }
@@ -234,6 +295,47 @@ button, input, select, textarea {
 }
 .empty-state { color: var(--muted); font-size: 12px; border: none; }
 .empty-state code { background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+
+/* --- word graph --- */
+.word-graph-query {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.word-graph-key-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.word-graph-key-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.word-graph-canvas { margin-top: 8px; }
+.word-graph-svg { width: 100%; height: auto; display: block; }
+
+.wg-backdrop { fill: var(--panel-2); }
+.wg-edge { stroke: var(--line); stroke-width: 1.5; }
+.wg-edge-dashed { stroke-dasharray: 4 3; opacity: 0.7; }
+
+.wg-node { stroke: var(--line); stroke-width: 1; }
+.wg-node-center { fill: var(--accent); }
+.wg-node-category { fill: var(--panel-2); stroke: var(--muted); }
+.wg-node-connector { fill: var(--panel-2); stroke-dasharray: 2 2; }
+.wg-node-leaf, .wg-node-branch { fill: var(--panel-2); }
+
+.wg-node-clickable { cursor: pointer; }
+.wg-node-clickable:hover .wg-node { stroke: var(--accent-2); stroke-width: 2; }
+
+.wg-node-text {
+  fill: var(--text);
+  font-size: 11px;
+  pointer-events: none;
+}
+.wg-node-text-center { font-weight: 700; }
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }

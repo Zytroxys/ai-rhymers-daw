@@ -46,6 +46,35 @@ describe('analyzeVerse', () => {
     const verse = analyzeVerse(['cat hat', '', '']);
     expect(verse.averageSyllables).toBe(2);
   });
+
+  it('leaves consonanceGroups empty by default (mode off)', () => {
+    const verse = analyzeVerse(['blink and brink']);
+    expect(verse.consonanceGroups.size).toBe(0);
+  });
+
+  it('leaves consonanceGroups empty when mode is explicitly off', () => {
+    const verse = analyzeVerse(['blink and brink'], 1, { mode: 'off' });
+    expect(verse.consonanceGroups.size).toBe(0);
+  });
+
+  it('populates consonanceGroups verse-wide when mode is on', () => {
+    const verse = analyzeVerse(['blink and brink'], 1, { mode: 'on' });
+    expect(verse.consonanceGroups.get('blink')).toBeDefined();
+    expect(verse.consonanceGroups.get('brink')).toBeDefined();
+  });
+
+  it('leaves consonanceGroups empty in semi-auto mode with no selection', () => {
+    const verse = analyzeVerse(['blink and brink'], 1, { mode: 'semi-auto' });
+    expect(verse.consonanceGroups.size).toBe(0);
+  });
+
+  it('populates consonanceGroups in semi-auto mode from a selection', () => {
+    const verse = analyzeVerse(['blink and brink'], 1, {
+      mode: 'semi-auto',
+      selection: [{ lineIdx: 0, wordIdx: 0 }],
+    });
+    expect(verse.consonanceGroups.get('blink')).toBeDefined();
+  });
 });
 
 describe('syllablePositions', () => {

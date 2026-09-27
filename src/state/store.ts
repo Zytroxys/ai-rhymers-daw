@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { Pattern, TransportSettings, makeTrack, resizePattern } from '../audio/types';
+import { WordPosition } from '../rhyme/consonance';
+
+export type ConsonanceMode = 'off' | 'on' | 'semi-auto';
 
 export interface ProjectState {
   name: string;
@@ -11,6 +14,13 @@ export interface ProjectState {
   barsPerLine: number;
   /** Word the rhyme panel is currently looking up. */
   focusWord: string | null;
+  /** 'off': no consonance highlighting. 'on': auto-detect across the whole
+   * verse. 'semi-auto': only decorate words in `consonanceSelection`. */
+  consonanceMode: ConsonanceMode;
+  /** Structural positions, not word text, so an edit that shifts word
+   * indices just drops stale entries rather than silently reassigning
+   * selection to a different word. Only meaningful in 'semi-auto' mode. */
+  consonanceSelection: WordPosition[];
 }
 
 const STEPS_PER_BAR = 16;
@@ -63,6 +73,8 @@ function defaultState(): ProjectState {
     ].join('\n'),
     barsPerLine: 1,
     focusWord: null,
+    consonanceMode: 'off',
+    consonanceSelection: [],
   };
 }
 
@@ -211,6 +223,30 @@ export const actions = {
 
   setFocusWord(word: string | null): void {
     set((s) => ({ ...s, focusWord: word }));
+  },
+
+  setConsonanceMode(mode: ConsonanceMode): void {
+    set((s) => ({
+      ...s,
+      consonanceMode: mode,
+      consonanceSelection: mode === 'semi-auto' ? s.consonanceSelection : [],
+    }));
+  },
+
+  toggleConsonanceWord(pos: WordPosition): void {
+    set((s) => {
+      const exists = s.consonanceSelection.some((p) => p.lineIdx === pos.lineIdx && p.wordIdx === pos.wordIdx);
+      return {
+        ...s,
+        consonanceSelection: exists
+          ? s.consonanceSelection.filter((p) => !(p.lineIdx === pos.lineIdx && p.wordIdx === pos.wordIdx))
+          : [...s.consonanceSelection, pos],
+      };
+    });
+  },
+
+  clearConsonanceSelection(): void {
+    set((s) => ({ ...s, consonanceSelection: [] }));
   },
 
   setName(name: string): void {
