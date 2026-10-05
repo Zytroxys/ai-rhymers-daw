@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { analyzeWord } from '../rhyme/g2p';
-import { DatamuseQuality, DatamuseRhyme, fetchRhymes } from '../rhyme/datamuse';
+import { DatamuseQuality, RhymeEntry, fetchRhymes, mergeRhymes } from '../rhyme/datamuse';
+import { OfflineIndex, loadOfflineIndex, offlineRhymes } from '../rhyme/offlineIndex';
 import { actions, useProject } from '../state/store';
 
 const QUALITY_LABEL: Record<DatamuseQuality, string> = {
@@ -8,16 +9,33 @@ const QUALITY_LABEL: Record<DatamuseQuality, string> = {
   near: 'near',
 };
 
-type Status = 'idle' | 'loading' | 'ready' | 'error';
+type Status = 'idle' | 'loading' | 'ready';
+type Online = 'pending' | 'on' | 'off';
 
-/** Rhyme lookup (Datamuse API) for whichever word is in focus. */
+/**
+ * Rhyme lookup for whichever word is in focus. The cached CMUdict index answers
+ * instantly and offline; when the network is up, Datamuse results are layered on top.
+ */
 export default function RhymePanel() {
   const focusWord = useProject((s) => s.focusWord);
   const [query, setQuery] = useState('');
   const [syllableFilter, setSyllableFilter] = useState<number | 'any'>('any');
   const [minQuality, setMinQuality] = useState<DatamuseQuality>('near');
-  const [results, setResults] = useState<DatamuseRhyme[]>([]);
+  const [results, setResults] = useState<RhymeEntry[]>([]);
   const [status, setStatus] = useState<Status>('idle');
+  const [online, setOnline] = useState<Online>('pending');
+  const [index, setIndex] = useState<OfflineIndex | null>(null);
+  const [indexTried, setIndexTried] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadOfflineIndex().then((loaded) => {
+      if (!live) return;
+      setIndex(loaded);
+      setIndexTried(true);
+    });
+    return () => { live = false; };
+  }, []);
 
   const word = query || focusWord || '';
   const analysis = useMemo(() => (word ? analyzeWord(word) : null), [word]);
@@ -28,25 +46,34 @@ export default function RhymePanel() {
       setStatus('idle');
       return undefined;
     }
+    if (!indexTried) {
+      setStatus('loading');
+      return undefined;
+    }
+    const local = index ? offlineRhymes(index, word) : [];
+    setResults(local);
+    setStatus('ready');
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setOnline('off');
+      return undefined;
+    }
     const controller = new AbortController();
-    setStatus('loading');
     const timer = setTimeout(() => {
       fetchRhymes(word, controller.signal)
-        .then((rhymes) => {
-          setResults(rhymes);
-          setStatus('ready');
+        .then((remote) => {
+          setResults(mergeRhymes(remote, local));
+          setOnline('on');
         })
         .catch((error: unknown) => {
-          if ((error as Error).name === 'AbortError') return;
-          setResults([]);
-          setStatus('error');
+          if ((error as Error).name !== 'AbortError') setOnline('off');
         });
     }, 250);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [word]);
+  }, [word, index, indexTried]);
 
   const matches = useMemo(
     () =>
@@ -63,6 +90,9 @@ export default function RhymePanel() {
       <div className="panel-head">
         <h2>Rhymes</h2>
         {status === 'ready' && <span className="stat">{matches.length} results</span>}
+        <span className="stat" title="Offline dictionary is always used; Datamuse is added when reachable">
+          {index ? 'offline dictionary' : 'no offline dictionary'} · {online === 'on' ? '+ Datamuse' : online === 'off' ? 'Datamuse unavailable' : 'Datamuse…'}
+        </span>
       </div>
 
       <input
@@ -101,10 +131,7 @@ export default function RhymePanel() {
       )}
 
       <div className="rhyme-results" role="region" aria-label="Rhyme results">
-        {status === 'loading' && <p className="empty-state">Looking up rhymes…</p>}
-        {status === 'error' && (
-          <p className="empty-state">Couldn’t reach the Datamuse API. Check your connection and try again.</p>
-        )}
+        {status === 'loading' && <p className="empty-state">Loading the rhyme dictionary…</p>}
         {status === 'idle' && <p className="empty-state">Type a word, or click one in your verse.</p>}
         {status === 'ready' && matches.length === 0 && (
           <p className="empty-state">No rhymes for “{word}” with these filters.</p>

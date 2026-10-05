@@ -337,6 +337,11 @@ function lookupKnown(clean: string): Phoneme[] | undefined {
   return undefined;
 }
 
+/** Raw CMUdict entry (stress digits intact), or undefined if the word isn't in it. */
+export function cmuEntry(word: string): string | undefined {
+  return CMUDICT[normalizeWord(word)];
+}
+
 /** CMUdict entry for a word, with ARPAbet stress digits removed. */
 function lookupCmu(clean: string): Phoneme[] | undefined {
   const entry = CMUDICT[clean];
