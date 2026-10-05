@@ -27,10 +27,15 @@ describe('pronounce', () => {
     expect(pronounce('station')).toEqual(['S', 'T', 'EY', 'SH', 'AH', 'N']);
   });
 
-  it('falls back to the exception table for irregulars', () => {
+  it('reads known words from CMUdict with stress digits stripped', () => {
     expect(pronounce('through')).toEqual(['TH', 'R', 'UW']);
-    expect(pronounce('bought')).toEqual(['B', 'AO', 'T']);
-    expect(pronounce('women')).toEqual(['W', 'IH', 'M', 'AH', 'N']);
+    expect(pronounce('bought')).toEqual(['B', 'AA', 'T']);
+    expect(pronounce('tonight')).toEqual(['T', 'AH', 'N', 'AY', 'T']);
+  });
+
+  it('falls back to the spelling rules for words CMUdict lacks', () => {
+    expect(pronounce('skrrt').length).toBeGreaterThan(0);
+    expect(pronounce("flowin'")).toEqual(pronounce('flowin'));
   });
 
   it('inherits irregular stems through regular inflections', () => {
