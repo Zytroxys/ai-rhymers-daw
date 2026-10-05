@@ -129,3 +129,21 @@ integration points, when they come:
 
 Each of those wants the engine here as its constraint layer: it knows what
 scans and what rhymes, which is exactly what a language model is worst at.
+
+## Rhyme search: offline first, Datamuse on top
+
+The rhyme panel works with no network. `public/rhyme-index.tsv` (every CMUdict
+word with its rhyme tail) is fetched once and kept in Cache Storage
+(`rhyme-index-v1`); later visits read it from there. When the network is up, the
+[Datamuse](https://www.datamuse.com/api/) API is queried too and its results are
+merged in ahead of the offline-only words.
+
+Regenerate the index with the Python `cmudict` package:
+
+```bash
+pip install cmudict
+python3 scripts/build_rhyme_index.py
+```
+
+Note: Cache Storage keeps the dictionary available offline, but reloading the
+page itself while offline would still need a service worker for the app shell.

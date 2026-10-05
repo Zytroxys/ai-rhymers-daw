@@ -193,7 +193,7 @@ button, input, select, textarea {
 .empty { color: var(--muted); }
 
 /* --- rhymes --- */
-.rhyme-panel { position: sticky; top: 76px; max-height: calc(100vh - 96px); display: flex; flex-direction: column; }
+.rhyme-panel { position: sticky; top: 76px; display: flex; flex-direction: column; }
 .rhyme-query {
   width: 100%;
   background: var(--panel-2);
@@ -204,13 +204,26 @@ button, input, select, textarea {
 .rhyme-filters { display: flex; gap: 12px; margin: 10px 0; flex-wrap: wrap; }
 .phonemes { margin: 0 0 8px; font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
 
-.rhyme-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+/* Fixed viewport for exactly 10 rows (10 x 34px); the rest scroll. */
+.rhyme-results {
+  box-sizing: content-box;
+  height: 340px;
+  flex: none;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+.rhyme-results .empty-state { margin: 0; padding: 10px; }
+.rhyme-list { list-style: none; margin: 0; padding: 0; }
 .rhyme-list li {
   position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 6px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--line);
 }
 .rhyme-word { background: none; border: none; padding: 0; cursor: pointer; font-weight: 600; }
@@ -225,13 +238,6 @@ button, input, select, textarea {
 .badge.perfect { background: rgba(77, 208, 225, 0.2); color: var(--accent-2); }
 .badge.near { background: rgba(255, 122, 77, 0.2); color: var(--accent); }
 .badge.multi { background: rgba(160, 120, 255, 0.2); color: #b39dff; margin-left: auto; }
-.score {
-  position: absolute;
-  left: 0; bottom: 0;
-  height: 2px;
-  background: var(--accent);
-  opacity: 0.5;
-}
 .empty-state { color: var(--muted); font-size: 12px; border: none; }
 .empty-state code { background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
 

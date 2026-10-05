@@ -1,15 +1,13 @@
+import { dictionary as CMUDICT } from 'cmu-pronouncing-dictionary';
 import { Consonant, Phoneme, Vowel, isVowel } from './phonemes';
 
 /**
- * Rule-based English grapheme-to-phoneme.
+ * English grapheme-to-phoneme.
  *
- * There is no pronunciation dictionary bundled here on purpose: shipping CMUdict
- * would add ~3MB to the bundle for a tool that only ever needs the tail of a word.
- * Instead this is longest-match spelling rules plus an exception table for the
- * high-frequency irregulars English is full of. It is approximate by design --
- * `addPronunciations()` lets a caller correct or extend it, and the rhyme scorer
- * degrades gracefully (a slightly wrong nucleus scores as a slant rhyme, not a
- * hard miss).
+ * Words are looked up in CMUdict first (stress digits stripped). Anything CMUdict
+ * doesn't know -- slang, dropped-g spellings like "flowin", invented words --
+ * falls back to longest-match spelling rules plus a small exception table.
+ * `addPronunciations()` overrides both.
  */
 
 const CONSONANT_LETTERS = 'bcdfghjklmnpqrstvwxyz';
@@ -339,7 +337,23 @@ function lookupKnown(clean: string): Phoneme[] | undefined {
   return undefined;
 }
 
+/** Raw CMUdict entry (stress digits intact), or undefined if the word isn't in it. */
+export function cmuEntry(word: string): string | undefined {
+  return CMUDICT[normalizeWord(word)];
+}
+
+/** CMUdict entry for a word, with ARPAbet stress digits removed. */
+function lookupCmu(clean: string): Phoneme[] | undefined {
+  const entry = CMUDICT[clean];
+  if (!entry) return undefined;
+  return parsePhonemes(entry.replace(/[012]/g, ''));
+}
+
 function computePronunciation(clean: string): Phoneme[] {
+  const user = USER_OVERRIDES.get(clean);
+  if (user) return user;
+  const cmu = lookupCmu(clean);
+  if (cmu) return cmu;
   const known = lookupKnown(clean);
   if (known) return known;
 
